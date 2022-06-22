@@ -33,28 +33,6 @@
   loop_control:
     label: "{{ item.name }}"
 
-- name: Send to Webhook
-  uri:
-    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-    method: POST
-    headers:
-        Authorization: "{{ accessToken }}"
-        Accept: "application/json"
-        Content-Type: "application/json"
-    body:
-        playbook_id: "{{ playbookID | default('') }}"
-        playbook_log_id: "{{ playbookLogID | default('') }}"
-        domain_id: "{{ domainID | default('') }}"
-        host: "{{ host }}"
-        source: "{{ source | default('') }}"
-        playbook_step_id: 8
-        status: 200
-    body_format: json
-    return_content: yes
-    force_basic_auth: yes
-  when: logTask == 'true'
-  delegate_to: localhost
-
 - name: Create Database and User
   block:
     - name: Create a Database
@@ -72,54 +50,10 @@
         force_basic_auth: yes
       register: forgeDatabaseName
 
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID | default('') }}"
-            host: "{{ host }}"
-            source: "{{ source | default('') }}"
-            playbook_step_id: 9
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: logTask == 'true'
-      delegate_to: localhost
-
     - name: Generate a Password for the Database
       shell:
         cmd: "pwgen -s -1 16"
       register: databasePassword
-
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID | default('') }}"
-            host: "{{ host }}"
-            source: "{{ source | default('') }}"
-            playbook_step_id: 10
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: logTask == 'true'
-      delegate_to: localhost
     
     - name: Create a Database User
       uri:
@@ -137,26 +71,4 @@
         return_content: yes
         force_basic_auth: yes
       register: forgeDatabaseUser
-
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID | default('') }}"
-            host: "{{ host }}"
-            source: "{{ source | default('') }}"
-            playbook_step_id: 11
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: logTask == 'true'
-      delegate_to: localhost
   when: (databaseExists|bool == false) or (env == 'production')

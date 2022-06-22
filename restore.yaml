@@ -15,27 +15,6 @@
         path: /root/backups/{{ domain }}/{{ location }}/
       register: backupFolder
 
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID }}"
-            host: "{{ host }}"
-            playbook_step_id: 5
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: (logTask == 'true')
-      delegate_to: localhost
-
     - name: Restore Files from the Backup Server
       synchronize: 
         src: "/root/backups/{{ domain }}/{{ location }}/" 
@@ -49,24 +28,3 @@
       when: (backupFolder.stat.exists)
       ignore_errors: yes
       delegate_to: "{{ host }}"
-
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID }}"
-            host: "{{ host }}"
-            playbook_step_id: 40
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: (logTask == 'true') and ((siteCMS == 'Laravel') or (siteCMS == 'Statamic'))
-      delegate_to: localhost

@@ -37,28 +37,6 @@
         force_basic_auth: yes
       register: forgeSites
 
-    - name: Send to Webhook
-      uri:
-        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-        method: POST
-        headers:
-            Authorization: "{{ accessToken }}"
-            Accept: "application/json"
-            Content-Type: "application/json"
-        body:
-            playbook_id: "{{ playbookID | default('') }}"
-            playbook_log_id: "{{ playbookLogID | default('') }}"
-            domain_id: "{{ domainID | default('') }}"
-            host: "{{ host }}"
-            source: "{{ source | default('')}}"
-            playbook_step_id: 1
-            status: 200
-        body_format: json
-        return_content: yes
-        force_basic_auth: yes
-      when: logTask == 'true'
-      delegate_to: localhost
-
     - set_fact:
         siteExists: true
       when: fullUrl == item.name
@@ -67,35 +45,7 @@
         label: "{{ item.name }}"
 
     - name: Clone Site from Git Repository
-      block:
-        - name: Setup Git Repository
-          include_tasks: "tasks/create_git_site.yaml"
-      rescue:
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 41
-                status: 500
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-        
-        - name: Return an error to API
-          fail:
-            msg: A Task Failed. Please see Logs
+      include_tasks: "tasks/create_git_site.yaml"
       when: gitRepository != ''
 
     - name: Clone WordPress Site
@@ -109,28 +59,6 @@
             owner: forge
             group: forge
 
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('')}}"
-                playbook_step_id: 5
-                status: 200
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-
         - name: Backup Database
           become: yes
           shell:
@@ -139,28 +67,6 @@
           args:
             executable: /bin/bash
           delegate_to: "{{ source }}"
-
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('')}}"
-                playbook_step_id: 6
-                status: 200
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
 
         - name: Transfer Files
           synchronize: 
@@ -177,28 +83,6 @@
           ignore_errors: yes
           delegate_to: "{{ source }}"
 
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('')}}"
-                playbook_step_id: 7
-                status: 200
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-
         - name: Create WordPress Database
           include_tasks: "tasks/create_wp_database.yaml"
 
@@ -213,32 +97,6 @@
         
         - name: Optimize WordPress Site
           include_tasks: "tasks/optimize_wp_site.yaml"
-      rescue:
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 41
-                status: 500
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-        
-        - name: Return an error to API
-          fail:
-            msg: A Task Failed. Please see Logs
       when: gitRepository == ''
 
     - name: Update WordPress Site
@@ -262,54 +120,6 @@
             body_format: json
             return_content: yes
             force_basic_auth: yes
-        
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 28
-                status: 200
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-      rescue:
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 41
-                status: 500
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-        
-        - name: Return an error to API
-          fail:
-            msg: A Task Failed. Please see Logs
       when: setupSSL == 'true' and siteExists == false
 
     - name: Add Security Rules
@@ -332,54 +142,6 @@
             body_format: json
             return_content: yes
             force_basic_auth: yes
-        
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 29
-                status: 200
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-      rescue:
-        - name: Send to Webhook
-          uri:
-            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
-            method: POST
-            headers:
-                Authorization: "{{ accessToken }}"
-                Accept: "application/json"
-                Content-Type: "application/json"
-            body:
-                playbook_id: "{{ playbookID | default('') }}"
-                playbook_log_id: "{{ playbookLogID | default('') }}"
-                domain_id: "{{ domainID | default('') }}"
-                host: "{{ host }}"
-                source: "{{ source | default('') }}"
-                playbook_step_id: 41
-                status: 500
-            body_format: json
-            return_content: yes
-            force_basic_auth: yes
-          when: logTask == 'true'
-          delegate_to: localhost
-          
-        - name: Return an error to API
-          fail:
-            msg: A Task Failed. Please see Logs
       when: secureSite == 'true' and siteExists == false
 
     - debug:
