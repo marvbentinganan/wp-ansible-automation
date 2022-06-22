@@ -1,0 +1,394 @@
+- name: Backup Site to Remote Server
+  hosts: "{{ host }}"
+  vars_files:
+    - "group_vars/site.yaml"
+    - "group_vars/default.yaml"
+  pre_tasks:
+    - name: Generate Token
+      include_tasks: "tasks/create_token.yaml"
+      when: logTask == 'true'
+  tasks:
+    # Create Backup Directories
+    - name: Create File Backup Directory
+      file:
+        path: "/root/backups/{{ domain }}/{{ location }}/"
+        state: directory
+        mode: '777'
+      delegate_to: "{{ backupServer }}"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID }}"
+            host: "{{ host }}"
+            playbook_step_id: 5
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+    - set_fact:
+        ansible_ssh_user: "forge"
+
+    - name: Tranfer Files
+      block:
+        - name: Transfer WordPress Files
+          synchronize: 
+            src: "{{ srcRootFolder }}/" 
+            dest: "/root/backups/{{ domain }}/{{ location }}/"
+            mode: pull
+            recursive: yes
+            delete: yes
+            rsync_opts:
+              - "--exclude=wp-content/cache/*"
+              - "--exclude=*.log"
+              - "--exclude=*_log"
+              - "--exclude=.git"
+          when: siteCMS == 'WordPress'
+          ignore_errors: yes
+          delegate_to: "{{ backupServer }}"
+        
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 33
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: (logTask == 'true') and (siteCMS == 'WordPress')
+          delegate_to: localhost
+
+        - name: Transfer Laravel/Statamic Files
+          synchronize: 
+            src: "{{ srcRootFolder }}/" 
+            dest: "/root/backups/{{ domain }}/{{ location }}/"
+            mode: pull
+            recursive: yes
+            delete: yes
+            rsync_opts:
+              - "--exclude=*.log"
+              - "--exclude=*_log"
+          when: (siteCMS == 'Laravel') or (siteCMS == 'Statamic')
+          ignore_errors: yes
+          delegate_to: "{{ backupServer }}"
+
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 34
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: (logTask == 'true') and ((siteCMS == 'Laravel') or (siteCMS == 'Statamic'))
+          delegate_to: localhost
+      rescue:
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID | default('') }}"
+                host: "{{ host }}"
+                source: "{{ source | default('') }}"
+                playbook_step_id: 41
+                status: 500
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: logTask == 'true'
+          delegate_to: localhost
+        - name: Return an error to API
+          fail:
+            msg: A Task Failed. Please see Logs
+
+    - name: Backup Database
+      block:
+        - name: Backup MySQL Database
+          mysql_db:
+            name: "{{ databaseName }}"
+            state: dump
+            target: "{{ dump_location }}/{{ domain }}-{{ ansible_date_time.date }}.sql"
+            login_host: "localhost"
+            login_user: "{{ database_user }}"
+            login_password: "{{ database_password }}"
+          when: (databaseType == 'MySQL') or (databaseType == 'MariaDB')
+
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 35
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: (logTask == 'true') and ((databaseType == 'MySQL') or (databaseType == 'MariaDB'))
+          delegate_to: localhost
+
+        - name: Backup PostgreSQL Database
+          become: yes
+          postgresql_db:
+              name: "{{ databaseName }}"
+              state: dump
+              target: "{{ dump_location }}/{{ domain }}-{{ ansible_date_time.date }}.sql"
+              target_opts: "-O -c --if-exists -n public"
+              login_host: "localhost"
+              login_user: "{{ database_user }}"
+              login_password: "{{ database_password }}"
+          when: databaseType == 'PostgreSQL'
+
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 36
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: (logTask == 'true') and (databaseType == 'PostgreSQL')
+          delegate_to: localhost
+      rescue:
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID | default('') }}"
+                host: "{{ host }}"
+                source: "{{ source | default('') }}"
+                playbook_step_id: 41
+                status: 500
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: logTask == 'true'
+          delegate_to: localhost
+        - name: Return an error to API
+          fail:
+            msg: A Task Failed. Please see Logs      
+
+    - name: Transfer Database Backup
+      block:
+        - name: Transfer Database Backup
+          synchronize: 
+            src: "{{ dump_location }}/{{ domain }}-{{ ansible_date_time.date }}.sql" 
+            dest: "/root/backups/{{ domain }}/{{ location }}/"
+            mode: pull
+            recursive: yes
+            delete: yes
+          delegate_to: "{{ backupServer }}"
+          when: (databaseType == 'MySQL') or (databaseType == 'MariaDB') or (databaseType == 'PostgreSQL')
+
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 37
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          delegate_to: localhost
+          when: (logTask == 'true') and ((databaseType == 'MySQL') or (databaseType == 'MariaDB') or (databaseType == 'PostgreSQL'))
+
+        - name: Delete Database File from tmp
+          become: yes
+          file:
+            path: "{{ dump_location }}/{{ domain }}-{{ ansible_date_time.date }}.sql"
+            state: absent
+          when: (databaseType == 'MySQL') or (databaseType == 'MariaDB') or (databaseType == 'PostgreSQL')
+
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 38
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          delegate_to: localhost
+          when: (logTask == 'true') and ((databaseType == 'MySQL') or (databaseType == 'MariaDB') or (databaseType == 'PostgreSQL'))
+      rescue:
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID | default('') }}"
+                host: "{{ host }}"
+                source: "{{ source | default('') }}"
+                playbook_step_id: 41
+                status: 500
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: logTask == 'true'
+          delegate_to: localhost
+        - name: Return an error to API
+          fail:
+            msg: A Task Failed. Please see Logs
+
+    - name: Record Backup Location
+      block:
+        - name: Send Backup Location to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                domain_id: "{{ domainID }}"
+                location: "{{ location }}"
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: logTask == 'true'
+          delegate_to: localhost
+        
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID }}"
+                host: "{{ host }}"
+                playbook_step_id: 39
+                status: 200
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          delegate_to: localhost
+          when: logTask == 'true'
+
+        - name: Send a success email
+          mail:
+            host: smtp.iation.net
+            port: 1025
+            username: iation
+            password: iation
+            secure: never
+            from: marvin.bentinganan@iation.com (Marvin Bentinganan)
+            to: iation Support <support@iation.com>
+            subject: Site Backup for {{ domain }}
+            body: 'Site Backup for {{ domain }} Completed Successfully'
+      rescue:
+        - name: Send to Webhook
+          uri:
+            url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+            method: POST
+            headers:
+                Authorization: "{{ accessToken }}"
+                Accept: "application/json"
+                Content-Type: "application/json"
+            body:
+                playbook_id: "{{ playbookID | default('') }}"
+                playbook_log_id: "{{ playbookLogID | default('') }}"
+                domain_id: "{{ domainID | default('') }}"
+                host: "{{ host }}"
+                source: "{{ source | default('') }}"
+                playbook_step_id: 41
+                status: 500
+            body_format: json
+            return_content: yes
+            force_basic_auth: yes
+          when: logTask == 'true'
+          delegate_to: localhost
+        - name: Return an error to API
+          fail:
+            msg: A Task Failed. Please see Logs

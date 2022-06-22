@@ -1,0 +1,33 @@
+---
+- name: Check if Site Exists
+  uri:
+    url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites"
+    method: GET
+    headers:
+        Authorization: "{{ forgeApiToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    return_content: yes
+    force_basic_auth: yes
+  register: forgeSites
+
+- set_fact:
+    siteExists: true
+    siteID: item.id
+  when: fullUrl == item.name
+  with_items: "{{ forgeSites.json.sites }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Get Website
+  uri:
+    url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ siteID }}"
+    method: GET
+    headers:
+        Authorization: "{{ forgeApiToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    return_content: yes
+    force_basic_auth: yes
+  register: activeSite
+  when: siteID is defined

@@ -1,0 +1,91 @@
+---
+- name: Optimize Database
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp db optimize
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 25
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Clear the cache
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp cache flush
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 26
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Set wp-config.php Permissions
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  file:
+    path: "{{ rootFolder }}/wp-config.php"
+    mode: '644'
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 27
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost

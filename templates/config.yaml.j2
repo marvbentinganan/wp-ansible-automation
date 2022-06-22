@@ -1,0 +1,120 @@
+location:
+    source_directories:
+        - {{ root_directory }}
+    
+    repositories:
+        - {{ repository }}
+
+    exclude_patterns:
+        - '*.pyc'
+        - ~/*/.cache
+        - '*.log'
+
+    exclude_caches: true
+    exclude_if_present: .nobackup
+
+# Repository storage options.
+storage:
+    # Passphrase to unlock the encryption key with
+    encryption_passphrase: {{ passphrase }}
+
+    # Path for Borg configuration files. Defaults to
+    borg_config_directory: {{ config_directory }}
+
+    # Name of the archive.
+    archive_name_format: '{{ domain }}-{now}'
+
+    # Extra Borg Options
+    extra_borg_options:
+        create: --json
+        prune: --save-space
+
+# Retention policy for how many backups to keep in each category
+retention:
+    # Number of daily archives to keep.
+    keep_daily: 7
+
+    # Number of weekly archives to keep.
+    # keep_weekly: 4
+
+    # Number of monthly archives to keep.
+    # keep_monthly: 30
+
+    # When pruning, only consider archive names starting with this prefix.
+    prefix: {{ domain }}
+
+# Consistency checks to run after backups
+consistency:
+    # List of one or more consistency checks to run
+    checks:
+        - repository
+    prefix: {{ domain }}
+
+hooks:
+    # before_backup:
+    #   -
+
+    # before_prune:
+    #   -
+
+    # before_extract:
+    #   -
+
+    # after_backup:
+    #   -
+
+    # after_prune:
+    #   -
+
+    # after_check:
+    #   -
+
+    # after_extract:
+    #   -
+
+    # on_error:
+    #   -
+
+    # before_everything:
+    #   -
+
+    # after_everything:
+    #   -
+
+    {% if databaseType == "mysql" %}
+    mysql_databases:
+        # Database name 
+        - name: {{ database_name }}
+          # Database hostname to connect to. 
+          hostname: localhost
+
+          # Port to connect to.
+          port: 3306
+
+          # Username with which to connect to the database.
+          username: {{ database_user }}
+
+          # Password with which to connect to the database.
+          password: {{ database_password }}
+
+          # Additional mysqldump options to pass directly to the dump command
+          options: --skip-comments --no-tablespaces
+    {% endif %}
+
+    {% if databaseType == "pgsql" %}
+    postgresql_databases:
+        # Database name
+        - name: {{ database_name }}
+
+          # Database hostname to connect to. 
+          hostname: localhost
+
+          # Port to connect to.
+          port: 5433
+
+          # Username with which to connect to the database.
+          username: {{ database_user }}
+
+          # Password with which to connect to the database.
+          password: {{ database_password }}
+    {% endif %}

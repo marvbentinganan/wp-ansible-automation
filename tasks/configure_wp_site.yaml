@@ -1,0 +1,273 @@
+---
+- name: Update Database Configuration
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp config set DB_USER {{ databaseUser }} && wp config set DB_NAME {{ databaseName }} && wp config set DB_PASSWORD {{ databasePassword.stdout }} && wp config set DB_HOST {{ databaseHost }}
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+  when: siteExists == false
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 19
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Restore Database
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp db import {{ backupDb }}
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 20
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Replace Domain name from the Database
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp search-replace "{{ srcFullUrl }}" "https://{{ fullUrl }}"
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 21
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Replace Home Directory from the Database
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp search-replace "{{ srcRootFolder }}" "{{ rootFolder }}"
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 22
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Replace Hard-coded domains
+  block:    
+    - name: Look for any hard-coded domains from files
+      become: yes
+      become_user: "{{ isolatedUser }}"
+      shell:
+        cmd: grep -lir "{{ srcFullUrl }}" --exclude=*.sql --exclude=*.pdf
+        chdir: "{{ rootFolder }}"
+      args:
+        executable: /bin/bash
+      register: hardCodedFiles_url
+      failed_when: "hardCodedFiles_url.rc == 2"
+
+    - name: Replace any hard-coded domains from files (if any)
+      become: yes
+      become_user: "{{ isolatedUser }}"
+      replace:
+        path: "{{ rootFolder }}/{{ item }}"
+        regexp: "{{ srcFullUrl }}"
+        replace: "https://{{ fullUrl }}"
+      with_items: "{{ hardCodedFiles_url.stdout_lines }}"
+      when: "hardCodedFiles_url.rc == 0"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 23
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+- name: Replace Hard-coded home directory
+  block:
+    - name: Look for any hard-coded home directory from files
+      become: yes
+      become_user: "{{ isolatedUser }}"
+      shell:
+        cmd: grep -lir  "{{ srcRootFolder }}" --exclude=*.sql --exclude=*.pdf
+        chdir: "{{ rootFolder }}"
+      args:
+        executable: /bin/bash
+      register: hardCodedFiles_home
+      failed_when: "hardCodedFiles_home.rc == 2"
+
+    - name: Replace any hard-coded home directory from files (if any)
+      become: yes
+      become_user: "{{ isolatedUser }}"
+      replace:
+        path: "{{ rootFolder }}/{{ item }}"
+        regexp: "{{ srcRootFolder }}"
+        replace: "{{ rootFolder }}"
+      with_items: "{{ hardCodedFiles_home.stdout_lines }}"
+      when: "hardCodedFiles_home.rc == 0"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 24
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+- name: Create Development/Staging User
+  block:
+    - name: Search for iation User
+      become: yes
+      shell:
+        cmd: "wp user get support@iation.com --allow-root"
+        chdir: "{{ rootFolder }}"
+      args:
+        executable: /bin/bash
+      register: adminUser
+      failed_when:
+        - adminUser.rc == 2
+
+    - set_fact:
+        updateQuery: wp user update support@iation.com --user_pass={{ stagingPassword }} --skip-email --allow-root
+      when: adminUser.rc == 0
+
+    - set_fact:
+        updateQuery: wp user create iation support@iation.com --user_pass={{ stagingPassword }} --role=administrator --allow-root
+      when: adminUser.rc == 1
+
+    - name: Create or Update iation User
+      become: yes
+      shell:
+        cmd: "{{ updateQuery }}"
+        chdir: "{{ rootFolder }}"
+      args:
+        executable: /bin/bash
+      register: adminUser
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 25
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+- name: Cleanup Database Backup
+  become: yes
+  file:
+    state: absent
+    path: "{{ rootFolder }}/{{ backupDb }}"

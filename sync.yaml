@@ -1,0 +1,8 @@
+- name: Prepare Variables
+  import_playbook: set_facts.yaml
+
+- name: Backup Database Playbook
+  import_playbook: backup_app_database.yaml
+
+- name: Restore Database Playbook
+  import_playbook: restore_app_database.yaml

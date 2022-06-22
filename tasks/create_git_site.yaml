@@ -1,0 +1,139 @@
+---
+- name: Create a Website
+  block:
+    - name: Create a Website in Laravel Forge
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites"
+        method: POST
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            domain: "{{ fullUrl }}"
+            project_type: "php"
+            directory: "/public"
+            username: "{{ isolatedUser }}"
+            isolated: true
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      register: forgeSite
+
+    - name: Pause for 30 seconds to finish creating the site
+      pause:
+        seconds: 30
+    
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 2
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+  when: siteExists == false
+
+- name: Setup the Site from Git Repository
+  block:
+    - name: Clone Site from Git Repository
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/git"
+        method: POST
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            provider: "{{ gitProvider }}"
+            repository: "{{ gitRepository }}"
+            branch: "{{ gitBranch }}"
+            composer: true
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+
+    - name: Pause for 60 seconds to finish setting up the site
+      pause:
+        seconds: 60
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 3
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      delegate_to: localhost
+      when: logTask == 'true'
+  when: forgeSite is defined and (siteExists == false)
+
+- name: Install and Compile NPM Packages
+  block:
+    - name: Install and Compile NPM Packages
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/commands"
+        method: POST
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            command: "yarn install && yarn run dev"
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+        status_code: [200, 204]
+      ignore_errors: yes
+    
+    - name: Pause for 30 seconds to finish compiling
+      pause:
+        seconds: 30
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 4
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+  when: forgeSite is defined

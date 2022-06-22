@@ -1,0 +1,39 @@
+---
+- name: Update WordPress Core Version 
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp core update && wp core update-db
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+
+- name: Update WooCommerce
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp plugin update woocommerce && wp wc update
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+
+- name: Update Plugins
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp plugin update --all
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+  ignore_errors: yes
+
+- name: Update Themes
+  become: yes
+  become_user: "{{ isolatedUser }}"
+  shell:
+    cmd: wp theme update --all
+    chdir: "{{ rootFolder }}"
+  args:
+    executable: /bin/bash
+  ignore_errors: yes

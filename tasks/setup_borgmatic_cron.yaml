@@ -1,0 +1,44 @@
+---
+- name: Setup Cron Job For Daily Backup
+  uri:
+    url: "{{ forgeBaseUri }}/servers/{{ serverID }}/jobs"
+    method: POST
+    headers:
+        Authorization: "{{ forgeApiToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        command: /home/forge/.local/bin/borgmatic --syslog-verbosity 1
+        frequency: "nightly"
+        user: "{{ ansible_user }}"
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  register: cron_job_backup
+  when: create_job|bool == true
+
+- debug:
+    msg: "{{ cron_job_backup.json.job }}"
+  when: create_job|bool == true
+
+- name: Setup Cron Job for Pruning Backups
+  uri:
+    url: "{{ forgeBaseUri }}/servers/{{ serverID }}/jobs"
+    method: POST
+    headers:
+        Authorization: "{{ forgeApiToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        command: /home/forge/.local/bin/borgmatic prune --stats
+        frequency: "nightly"
+        user: "{{ ansible_user }}"
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  register: cron_job_prune
+  when: create_job|bool == true
+
+- debug:
+    msg: "{{ cron_job_prune.json.job }}"
+  when: create_job|bool == true

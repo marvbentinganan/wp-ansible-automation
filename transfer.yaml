@@ -1,0 +1,95 @@
+---
+- name: Backup and Copy Source Website
+  hosts: "{{ host }}"
+  vars_files:
+    - "group_vars/forge.yaml"
+    - "group_vars/site.yaml"
+    - "group_vars/default.yaml"
+  tasks:
+    - name: Backup Database
+      become: yes
+      shell:
+        cmd: wp db export {{ domain }}-latest.sql --allow-root
+        chdir: "{{ srcRootFolder }}"
+      args:
+        executable: /bin/bash
+      delegate_to: "{{ source }}"
+
+    - name: Ensure Backup Directory exists
+      become: yes
+      file:
+        path: "{{ backupDirectory }}/{{ domain }}"
+        state: directory
+        recurse: yes
+        owner: forge
+        group: forge
+
+    # Delegate the task to the target host - Destination Server copies the files from the Source
+    - name: Transfer Files
+      synchronize: 
+        src: "{{ srcRootFolder }}/" 
+        dest: "{{ backupDirectory }}/{{ domain }}/"
+        mode: push
+        recursive: yes
+        delete: yes
+        rsync_opts:
+          - "--exclude=wp-content/cache/*"
+          - "--exclude=*.log"
+          - "--exclude=*_log"
+      ignore_errors: yes
+      delegate_to: "{{ source }}"
+
+    - name: Create WordPress Database
+      include_tasks: "tasks/create_wp_database.yaml"
+      
+    - name: Check if the Website already exists
+      stat:
+        path: "{{ rootFolder }}"
+      register: siteExists
+
+    - name: Create WordPress Site
+      include_tasks: "tasks/create_wp_site.yaml"
+
+    - name: Obtain an SSL Certificate
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/certificates/letsencrypt"
+        method: POST
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            domains: ["{{ prefix }}{{ domain }}.{{ tld }}"]
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: setupSSL == 'true' and siteExists.stat.exists == false
+
+    - name: Add Security Rules
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/security-rules"
+        method: POST
+        headers:
+          Authorization: "{{ forgeApiToken }}"
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          name: "Restricted Access"
+          path: null
+          credentials: [{
+            username: "{{ secureUsername }}",
+            password: "{{ securePassword }}" 
+          }]
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: secureSite == 'true' and siteExists.stat.exists == false
+
+    - name: Move WordPress Backup Files
+      include_tasks: "tasks/move_wp_files.yaml"
+      
+    - name: Configure WordPress Site
+      include_tasks: "tasks/configure_wp_site.yaml"
+
+    - name: Optimize WordPress Site
+      include_tasks: "tasks/optimize_wp_site.yaml"

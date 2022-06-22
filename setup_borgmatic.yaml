@@ -1,0 +1,16 @@
+- name: Setup BorgBackup
+  hosts: "{{ host }}"
+  vars_files:
+    - group_vars/forge.yaml
+    - group_vars/default.yaml
+  tasks:
+    - name: Install Packages
+      include_tasks: "tasks/install_borgmatic.yaml"
+      
+    - name: Ensure Configuration Directory Exists
+      file:
+        path: "{{ config_directory }}"
+        state: directory
+
+    - name: Setup Task Schedulers
+      include_tasks: "tasks/setup_borgmatic_cron.yaml"

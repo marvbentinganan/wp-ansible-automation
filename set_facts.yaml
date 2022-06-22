@@ -1,0 +1,52 @@
+- name: Set Facts
+  hosts: localhost
+  connection: local
+  gather_facts: "no"
+  tasks:
+    - set_fact:
+        source_database_name: "websitecustodian"
+        target_database_name: "websitecustodian"
+        source: "do-sf2-iapp-01"
+      when: ((env == 'production') or (env == 'staging')) and (app == 'wc')
+
+    - set_fact:
+        source_database_name: "oco"
+        target_database_name: "oco"
+        source: "do-sf2-db-pgsql-01"
+      when: ((env == 'production') or (env == 'staging')) and (app == 'oco')
+
+    - set_fact:
+        source_database_name: "handcutfoods"
+        target_database_name: "hcf"
+        source: "do-ny3-hcf-01"
+      when: (env == 'production') and (app == 'hcf')
+
+    - set_fact:
+        source_database_name: "handcutfoods"
+        target_database_name: "hcf"
+        source: do-ny3-hcf-dev-01
+      when: (env == 'staging') and (app == 'hcf')
+
+    - set_fact:
+        source_database_name: "handcutfoods_dev"
+        target_database_name: "hcf"
+        source: do-ny3-hcf-dev-01
+      when: (env == 'development') and (app == 'hcf')
+
+    - set_fact:
+        source_database_name: "ipshawaii"
+        target_database_name: "ips"
+        source: "do-sf2-ips-prd-01"
+      when: (env == 'production') and (app == 'ips')
+
+    - set_fact:
+        source_database_name: "ipshawaii"
+        target_database_name: "ips"
+        source: "do-sf2-ips-dev-01"
+      when: (env == 'staging') and (app == 'ips')
+
+    - set_fact:
+        source_database_name: "ipshawaii_dev"
+        target_database_name: "ips"
+        source: "do-sf2-ips-dev-01"
+      when: (env == 'development') and (app == 'ips')

@@ -1,0 +1,215 @@
+---
+- name: Set Ownership of Files
+  become: yes
+  file:
+    state: directory
+    path: "{{ backupDirectory }}/{{ domain }}"
+    owner: "{{ isolatedUser }}"
+    group: "{{ isolatedUser }}"
+    recurse: yes
+
+- name: Send to Webhook
+  uri:
+    url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+    method: POST
+    headers:
+        Authorization: "{{ accessToken }}"
+        Accept: "application/json"
+        Content-Type: "application/json"
+    body:
+        playbook_id: "{{ playbookID | default('') }}"
+        playbook_log_id: "{{ playbookLogID | default('') }}"
+        domain_id: "{{ domainID | default('') }}"
+        host: "{{ host }}"
+        source: "{{ source | default('') }}"
+        playbook_step_id: 13
+        status: 200
+    body_format: json
+    return_content: yes
+    force_basic_auth: yes
+  when: logTask == 'true'
+  delegate_to: localhost
+
+- name: Move Files to Project Folder
+  block:
+    - name: Delete Template Files
+      become: yes
+      file:
+        state: absent
+        path: "{{ rootFolder }}"
+    
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 14
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+    # - name: Copy Files to Isolated Site
+    #   become: yes
+    #   copy:
+    #     remote_src: yes
+    #     src: "{{ backupDirectory }}/{{ domain }}/"
+    #     dest: "{{ rootFolder }}"
+    #     owner: "{{ isolatedUser }}"
+    #     group: "{{ isolatedUser }}"
+
+    - name: Copy wp-content files to Isolated Site
+      become: yes
+      shell:
+        cmd: mv {{ backupDirectory }}/{{ domain }} {{ rootFolder }}
+
+    - name: Recursively change ownership of wp-content
+      file:
+        path: "{{ rootFolder }}"
+        state: directory
+        recurse: yes
+        owner: "{{ isolatedUser }}"
+        group: "{{ isolatedUser }}"
+    
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 15
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+  when: siteExists == false
+
+- name: Overwrite Existing Site
+  block:
+    - name: Delete old wp-content files from the Isolated Site
+      become: yes
+      file:
+        state: absent
+        path: "{{ rootFolder }}/wp-content"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 16
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+ 
+    - name: Copy wp-content files to Isolated Site
+      become: yes
+      shell:
+        cmd: mv {{ backupDirectory }}/{{ domain }}/wp-content {{ rootFolder }}/
+      # copy:
+      #   remote_src: yes
+      #   src: "{{ backupDirectory }}/{{ domain }}/wp-content/"
+      #   dest: "{{ rootFolder }}/wp-content"
+      #   owner: "{{ isolatedUser }}"
+      #   group: "{{ isolatedUser }}"
+
+    - name: Recursively change ownership of wp-content
+      file:
+        path: "{{ rootFolder }}/wp-content"
+        state: directory
+        recurse: yes
+        owner: "{{ isolatedUser }}"
+        group: "{{ isolatedUser }}"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 17
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+
+    - name: Copy Database Backup to Isolated Site
+      become: yes
+      copy:
+        remote_src: yes
+        src: "{{ backupDirectory }}/{{ domain }}/{{ domain }}-latest.sql"
+        dest: "{{ rootFolder }}"
+        owner: "{{ isolatedUser }}"
+        group: "{{ isolatedUser }}"
+
+    - name: Send to Webhook
+      uri:
+        url: "{{ wc_api_endpoint }}/api/playbooks/webhook"
+        method: POST
+        headers:
+            Authorization: "{{ accessToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            playbook_id: "{{ playbookID | default('') }}"
+            playbook_log_id: "{{ playbookLogID | default('') }}"
+            domain_id: "{{ domainID | default('') }}"
+            host: "{{ host }}"
+            source: "{{ source | default('') }}"
+            playbook_step_id: 18
+            status: 200
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      when: logTask == 'true'
+      delegate_to: localhost
+  when: siteExists == true
+
+- name: Delete obtained backup
+  become: yes
+  file:
+    state: absent
+    path: "{{ backupDirectory }}/{{ domain }}"

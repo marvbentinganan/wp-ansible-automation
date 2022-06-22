@@ -1,0 +1,47 @@
+- name: Restore Application Database
+  hosts: "{{ host }}"
+  gather_facts: "no"
+  vars_files:
+    - "group_vars/default.yaml"
+  tasks:
+    # Push Database Backup to Target Server
+    - name: Transfer Database Backup from Bridge to Target Server
+      copy: 
+        src: "{{ dump_location }}/{{ hostvars['localhost']['source_database_name'] }}-{{ dump_suffix }}.sql"
+        dest: "{{ dump_location }}/"
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    # Reset Database Connection
+    - name: Restart postgresql service
+      become: "yes"
+      systemd:
+        name: postgresql
+        state: restarted
+
+    # Drop Local Database
+    - name: Drop Database
+      become: "yes"
+      become_user: "postgres"
+      postgresql_db:
+        name: "{{ hostvars['localhost']['target_database_name'] }}"
+        state: absent
+
+    # Create Database
+    - name: Create Database
+      become: "yes"
+      become_user: "postgres"
+      postgresql_db:
+        name: "{{ hostvars['localhost']['target_database_name'] }}"
+        state: present
+      
+    # Restore to Local Database
+    - name: Restore Database Backup
+      become_user: "postgres"
+      postgresql_db:
+        name: "{{ hostvars['localhost']['target_database_name'] }}"
+        state: restore
+        target: "{{ dump_location }}/{{ hostvars['localhost']['source_database_name'] }}-{{ dump_suffix }}.sql"
+        login_host: "localhost"
+        login_user: "{{ database_user }}"
+        login_password: "{{ database_password }}"

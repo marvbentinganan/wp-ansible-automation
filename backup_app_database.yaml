@@ -1,0 +1,35 @@
+- name: Backup Application Database
+  hosts: "{{ hostvars['localhost']['source'] }}"
+  gather_facts: "no"
+  vars_files:
+    - "group_vars/default.yaml"
+  tasks:
+    # Backup Database
+    - name: Create Database Backup
+      become: yes
+      postgresql_db:
+        name: "{{ hostvars['localhost']['source_database_name'] }}"
+        state: dump
+        target: "{{ dump_location }}/{{ hostvars['localhost']['source_database_name'] }}-{{ dump_suffix }}.sql"
+        target_opts: "-O -c --if-exists -n public"
+        login_host: "localhost"
+        login_user: "{{ database_user }}"
+        login_password: "{{ database_password }}"
+      delegate_to: "{{ hostvars['localhost']['source'] }}"
+
+    # Copy Database to Backup to Bridge Server
+    - name: Fetch Database Backup from Source to Bridge Server
+      run_once: "yes"
+      fetch:
+        src: "{{ dump_location }}/{{ hostvars['localhost']['source_database_name'] }}-{{ dump_suffix }}.sql"
+        dest: "{{ dump_location }}/"
+        flat: "yes"
+      delegate_to: "{{ hostvars['localhost']['source'] }}"
+
+    # Delete Database file from tmp folder
+    - name: Delete database File from tmp
+      become: yes
+      file:
+        path: "{{ dump_location}}/{{ hostvars['localhost']['source_database_name'] }}-{{ dump_suffix }}.sql"
+        state: absent
+      delegate_to: "{{ hostvars['localhost']['source'] }}"

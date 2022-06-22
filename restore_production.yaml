@@ -1,0 +1,52 @@
+- name: Restore Backup
+  hosts: "{{ host }}"
+  vars_files:
+    - group_vars/forge.yaml
+    - group_vars/default.yaml
+  tasks:
+    - name: Ensure Temp Directory is Empty
+      become: yes
+      file:
+        path: "{{ temp_directory }}/home"
+        state: absent
+
+    - name: Extract Files from an Archive to tmp
+      shell:
+        cmd: /home/forge/.local/bin/borgmatic extract -c {{ config_directory }}/{{ domain }}.yaml --archive {{ archive }} --destination {{ temp_directory }} --progress
+      register: extract_backup
+      when: restore_type == "files" or restore_type == "all"
+
+    - name: Set Ownership of the files
+      become: yes
+      file:
+        path: "{{ temp_directory }}/home"
+        state: directory
+        owner: "{{ isolatedUser }}"
+        group: "{{ isolatedUser }}"
+        recurse: yes
+      when: restore_type == "files" or restore_type == "all"
+
+    - name: Restore Files
+      become: yes
+      become_user: "{{ isolatedUser }}"
+      synchronize:
+        src: "{{ temp_directory }}{{ root_directory }}"
+        dest: "{{ root_directory }}"
+        recursive: yes
+        delete: yes
+      delegate_to: "{{ host }}"
+      when: restore_type == "files" or restore_type == "all"
+
+    - name: Restore Database
+      shell:
+        cmd: /home/forge/.local/bin/borgmatic restore -c {{ config_directory }}/{{ domain }}.yaml --archive {{ archive }}
+      register: restore_database
+      when: restore_type == "database" or restore_type == "all"
+
+    # Pass Success/Error Response to WC API
+
+    - name: Cleanup Archive
+      become: yes
+      file:
+        path: "{{ temp_directory }}/home"
+        state: absent

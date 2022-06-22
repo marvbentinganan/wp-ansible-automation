@@ -1,0 +1,89 @@
+---
+- name: Create Site from Git Repository
+  hosts: "{{ host }}"
+  vars_files:
+    - "group_vars/forge.yaml"
+    - "group_vars/site.yaml"
+    - "group_vars/default.yaml"
+  tasks:
+    - set_fact:
+        newSite: "true"
+        environment: "production"
+
+    - name: Check if Site Exists
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites"
+        method: GET
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        return_content: yes
+        force_basic_auth: yes
+      register: forgeSites
+
+    - set_fact:
+        siteExists: true
+      when: fullUrl == item.name
+      with_items: "{{ forgeSites.json.sites }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Create Site from Git Repository
+      include_tasks: "tasks/create_git_site.yaml"
+
+    - name: Obtain an SSL Certificate
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/certificates/letsencrypt"
+        method: POST
+        headers:
+            Authorization: "{{ forgeApiToken }}"
+            Accept: "application/json"
+            Content-Type: "application/json"
+        body:
+            domains: ["{{ fullUrl }}"]
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      ignore_errors: yes
+      when: setupSSL == 'true'
+
+    - name: Add Security Rules
+      uri:
+        url: "{{ forgeBaseUri }}/servers/{{ serverID }}/sites/{{ forgeSite.json.site.id }}/security-rules"
+        method: POST
+        headers:
+          Authorization: "{{ forgeApiToken }}"
+          Accept: "application/json"
+          Content-Type: "application/json"
+        body:
+          name: "Restricted Access"
+          path: null
+          credentials: [{
+            username: "{{ secureUsername }}",
+            password: "{{ securePassword }}" 
+          }]
+        body_format: json
+        return_content: yes
+        force_basic_auth: yes
+      ignore_errors: yes
+      when: secureSite == 'true'
+
+    - debug:
+        msg:
+          - "Installation and Configuration still in progress..."
+          - "You can check it by opening this link: https://{{ fullUrl }} afterwards."
+                       
+  post_tasks:
+   - name: Send a success email
+     mail:
+      host: smtp.iation.net
+      port: 1025
+      username: iation
+      password: iation
+      secure: never
+      from: marvin.bentinganan@iation.com (Marvin Bentinganan)
+      to: iation Support <support@iation.com>
+      subject: Your new Site is Ready
+      body: |
+        We deployed a your new Website and you can view it here: https://{{ fullUrl }}

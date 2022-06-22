@@ -1,0 +1,35 @@
+- name: Initialize BorgBase Repository
+  hosts: "{{ host }}"
+  vars_files:
+    - group_vars/forge.yaml
+    - group_vars/default.yaml
+  tasks:
+    - name: Check if Configuration File Exists
+      stat:
+        path: "{{ config_directory }}/{{ domain }}.yaml"
+      register: config_file
+
+    - name: Create Backup
+      shell:
+        cmd: /home/forge/.local/bin/borgmatic create -c {{ config_directory }}/{{ domain }}.yaml --stats
+      register: create_backup
+      when: config_file.stat.exists
+
+    - debug:
+        msg: "{{ create_backup }}"
+      when: config_file.stat.exists
+
+    - name: List Backup
+      shell:
+        cmd: /home/forge/.local/bin/borgmatic list -c {{ config_directory }}/{{ domain }}.yaml --short --last 1
+      register: list_backup
+      when: config_file.stat.exists
+
+    - set_fact:
+        archive_name: "{{ list_backup.stdout_lines[1] }}"
+
+    - debug:
+        msg: "{{ archive_name }}"
+      when: config_file.stat.exists
+
+    # Pass Archive Name to WC API
